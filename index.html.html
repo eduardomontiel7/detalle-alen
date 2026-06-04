@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Para Alen ✨</title>
+    <!-- Una fuente elegante y moderna -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050509; /* Fondo casi negro para que resalten las luces */
+            font-family: 'Quicksand', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        /* Pantalla de carga/inicio */
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #1a1a2e 0%, #050509 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 1s ease, visibility 1s;
+        }
+
+        #overlay h1 {
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        #start-btn {
+            padding: 12px 30px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: #fff;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        #start-btn:hover {
+            background: #fff;
+            color: #050509;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+        }
+
+        /* Contenedor principal de la magia */
+        #magic-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* El mensaje final, suave y elegante */
+        #message-structure {
+            position: absolute;
+            bottom: 10%;
+            width: 80%;
+            text-align: center;
+            pointer-events: none; /* No interfiere con el toque del canvas */
+        }
+
+        #typewriter-text {
+            font-size: 1.2rem;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.6;
+            text-shadow: 0 0 5px rgba(255, 182, 193, 0.4);
+        }
+
+        .heart-icon {
+            color: #ffb6c1;
+            font-size: 1.3rem;
+            margin-left: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Pantalla de Inicio -->
+    <div id="overlay">
+        <h1>Para Alen</h1>
+        <button id="start-btn">Iniciar Magia</button>
+    </div>
+
+    <!-- Contenedor de la Magia -->
+    <div id="magic-container">
+        <canvas id="flowCanvas"></canvas>
+        <div id="message-structure">
+            <span id="typewriter-text"></span>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuración y Variables Globales ---
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const container = document.getElementById('magic-container');
+        const canvas = document.getElementById('flowCanvas');
+        const ctx = canvas.getContext('2d');
+        const textElement = document.getElementById('typewriter-text');
+
+        let width, height;
+        let particles = [];
+        let animationId;
+        const particleCount = 800; // Suficiente para que sea lindo, bajo para móvil
+        const heartPoints = [];
+        let interactionMode = false;
+        let mouseX = 0, mouseY = 0;
+
+        // Texto Personalizado (Puedes cambiarlo aquí, Lalo)
+        const message = "Inicializando variables...\nAnalizando protocolo_sentimientos.exe\nResultado: Eres alguien especial, Alen. <span class='heart-icon'>♥</span>";
+
+        // --- Inicialización Responsive ---
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            // Regenerar puntos del corazón si cambia el tamaño
+            generateHeartPoints();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Configuración de Interacción (Táctil y Ratón) ---
+        function getMousePos(e) {
+            if (e.touches) {
+                mouseX = e.touches[0].clientX;
+                mouseY = e.touches[0].clientY;
+            } else {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            }
+        }
+        canvas.addEventListener('mousemove', getMousePos);
+        canvas.addEventListener('touchstart', (e) => { interactionMode = true; getMousePos(e); });
+        canvas.addEventListener('touchmove', getMousePos);
+        canvas.addEventListener('touchend', () => interactionMode = false);
+        canvas.addEventListener('mousedown', () => interactionMode = true);
+        canvas.addEventListener('mouseup', () => interactionMode = false);
+
+        // --- La Clase Partícula: El Alma de la Magia ---
+        class Particle {
+            constructor(targetX, targetY) {
+                // Posición inicial aleatoria explotando desde el centro
+                this.x = width / 2 + (Math.random() - 0.5) * 50;
+                this.y = height / 2 + (Math.random() - 0.5) * 50;
+                // Posición objetivo (el corazón)
+                this.targetX = targetX;
+                this.targetY = targetY;
+                // Velocidad
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                // Fricción y atracción
+                this.accel = 0.01 + Math.random() * 0.02;
+                this.friction = 0.94 + Math.random() * 0.02;
+                // Estética
+                this.size = Math.random() * 1.5 + 0.5;
+                // Color: Tonos rosa/dorado suave
+                const hues = [350, 40, 20]; // Rosa, Dorado, Naranja suave
+                this.color = `hsla(${hues[Math.floor(Math.random()*hues.length)]}, 80%, 75%, ${Math.random() * 0.7 + 0.3})`;
+            }
+
+            update() {
+                // Cálculo de atracción al objetivo
+                let dx = this.targetX - this.x;
+                let dy = this.targetY - this.y;
+                
+                // Efecto "latido" sutil en el objetivo
+                let pulse = Math.sin(Date.now() * 0.002) * 2;
+                let targetDist = Math.sqrt(dx*dx + dy*dy);
+                if(targetDist > 1) {
+                    this.targetX += (dx/targetDist) * pulse * 0.01;
+                    this.targetY += (dy/targetDist) * pulse * 0.01;
+                }
+
+                // Aplicar aceleración hacia el objetivo
+                this.vx += dx * this.accel;
+                this.vy += dy * this.accel;
+
+                // --- Lógica de Interacción ---
+                if (interactionMode) {
+                    let idx = mouseX - this.x;
+                    let idy = mouseY - this.y;
+                    let dist = Math.sqrt(idx * idx + idy * idy);
+                    // Si está cerca del toque, las partículas se dispersan (fuerza repulsiva)
+                    if (dist < 80) {
+                        this.vx -= idx * 0.03;
+                        this.vy -= idy * 0.03;
+                    }
+                }
+
+                // Fricción y movimiento
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- Geometría: Generar Puntos de Corazón Matemático ---
+        function generateHeartPoints() {
+            heartPoints.length = 0;
+            // Escalar el corazón basado en el ancho de pantalla
+            const scale = Math.min(width, height) * 0.015; 
+            const centerX = width / 2;
+            const centerY = height / 2 - (scale * 5); // Ajuste vertical
+
+            for (let i = 0; i < particleCount; i++) {
+                // Ecuación paramétrica del corazón
+                const t = (i / particleCount) * Math.PI * 2;
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+                
+                // Añadir variación aleatoria para que no sea una línea perfecta (más orgánico)
+                const jitter = (Math.random() - 0.5) * 1.5;
+                heartPoints.push({
+                    x: centerX + (x + jitter) * scale,
+                    y: centerY + (y + jitter) * scale
+                });
+            }
+        }
+
+        // --- El Loop de Animación Principal ---
+        function animate() {
+            // Fondo semitransparente para efecto de "rastro" (trail effect)
+            ctx.fillStyle = 'rgba(5, 5, 9, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Modo de mezcla para que brillen las partículas
+            ctx.globalCompositeOperation = 'lighter';
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            // Restaurar modo de mezcla por defecto
+            ctx.globalCompositeOperation = 'source-over';
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // --- Efecto Máquina de Escribir ---
+        let messageIndex = 0;
+        function typeWriter() {
+            if (messageIndex < message.length) {
+                // Soporte básico para etiquetas HTML como el icono de corazón
+                if (message.substring(messageIndex, messageIndex + 1) === '<') {
+                    const tagEnd = message.indexOf('>', messageIndex);
+                    textElement.innerHTML += message.substring(messageIndex, tagEnd + 1);
+                    messageIndex = tagEnd + 1;
+                } else if (message.substring(messageIndex, messageIndex + 1) === '\n') {
+                    textElement.innerHTML += '<br>';
+                    messageIndex++;
+                } else {
+                    textElement.innerHTML += message.charAt(messageIndex);
+                    messageIndex++;
+                }
+                // Velocidad de escritura
+                setTimeout(typeWriter, 50 + Math.random() * 40); 
+            }
+        }
+
+        // --- Inicio del Evento ---
+        startBtn.addEventListener('click', () => {
+            // Desvanecer el overlay
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 1000);
+
+            // Mostrar el contenedor de la magia
+            container.style.opacity = '1';
+
+            // Iniciar Partículas y Animación
+            generateHeartPoints();
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle(heartPoints[i].x, heartPoints[i].y));
+            }
+            animate();
+
+            // Iniciar texto después de un breve delay
+            setTimeout(typeWriter, 2000);
+        });
+
+    </script>
+</body>
+</html>
